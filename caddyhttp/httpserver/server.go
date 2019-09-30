@@ -20,6 +20,8 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 	"log"
 	"net"
 	"net/http"
@@ -42,6 +44,7 @@ import (
 type Server struct {
 	Server      *http.Server
 	quicServer  *h2quic.Server
+	http2Server *http2.Server
 	sites       []*SiteConfig
 	connTimeout time.Duration // max time to wait for a connection before force stop
 	tlsGovChan  chan struct{} // close to stop the TLS maintenance goroutine
@@ -135,6 +138,11 @@ func NewServer(addr string, group []*SiteConfig) (*Server, error) {
 			// that is returned from GetConfigForClient; if there is no overlap,
 			// the connection will fail (as of Go 1.8, Feb. 2017).
 			s.Server.TLSConfig.NextProtos = defaultALPN
+		}
+	} else {
+		if HTTP2 {
+			s.http2Server = &http2.Server{IdleTimeout: s.Server.IdleTimeout}
+			s.Server.Handler = h2c.NewHandler(s.Server.Handler, s.http2Server)
 		}
 	}
 
